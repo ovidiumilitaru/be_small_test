@@ -1,0 +1,39 @@
+name: Docker CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-test-deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Login on Docker hub
+        uses: docker/login-action@v1
+        with: 
+          username: ${{ secrets.DOCKER_USERNAMR }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push docker image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          push: true
+          tags: ovidiumilitaru/webapp:${{ github.sha }}
+      
+      - name: Deploy to EC2 instance
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          keys: ${{ secrets.EC2_PRIVATE_KEY }}
+          scripts: |
+            docker stop webapp || true
+            docker rm webapp || true
+            docker pull ${{ secrets.DOCKER_USERNAME }}/webapp:${{ github.sha }}
+            docker run -d --name webapp -p 3000:3000 ${{ secrets.DOCKER_USERNAME }}/webapp:${{ github.sha }}
